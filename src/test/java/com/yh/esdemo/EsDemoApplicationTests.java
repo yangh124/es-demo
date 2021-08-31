@@ -1,15 +1,30 @@
 package com.yh.esdemo;
 
+import com.alibaba.fastjson.JSONObject;
+import com.yh.esdemo.domain.Customer;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.IndicesClient;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -93,6 +108,80 @@ class EsDemoApplicationTests {
         jsonMap.put("timestamp", timestamp);
         IndexRequest indexRequest = new IndexRequest("zeda_customer").id("1").source(jsonMap);
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
-        System.out.println(indexResponse.toString());
+        System.out.println(indexResponse);
+    }
+
+    /**
+     * 修改数据
+     *
+     * @throws Exception
+     */
+    @Test
+    public void updateDoc() throws Exception {
+        UpdateRequest updateRequest = new UpdateRequest("zeda_customer", "1");
+        Map<String, Object> jsonMap = new HashMap<>();
+        jsonMap.put("name", "杨皓大帅哥");
+        updateRequest.doc(jsonMap);
+        UpdateResponse update = restHighLevelClient.update(updateRequest, RequestOptions.DEFAULT);
+        System.out.println(update);
+    }
+
+    /**
+     * 判断是否存在
+     *
+     * @throws Exception
+     */
+    @Test
+    public void exists() throws Exception {
+        GetRequest getRequest = new GetRequest("zeda_customer");
+        getRequest.id("1");
+        boolean exists = restHighLevelClient.exists(getRequest, RequestOptions.DEFAULT);
+        System.out.println(exists);
+    }
+
+    /**
+     * 获取数据
+     *
+     * @throws Exception
+     */
+    @Test
+    public void get() throws Exception {
+        GetRequest getRequest = new GetRequest("zeda_customer");
+        getRequest.id("1");
+        GetResponse getResponse = restHighLevelClient.get(getRequest, RequestOptions.DEFAULT);
+        System.out.println(getResponse);
+    }
+
+    /**
+     * 获取数据
+     * 获取source
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getSource() throws Exception {
+        GetSourceRequest getRequest = new GetSourceRequest("zeda_customer", "1");
+        GetSourceResponse source = restHighLevelClient.getSource(getRequest, RequestOptions.DEFAULT);
+        System.out.println(source);
+    }
+
+    /**
+     * 搜索
+     *
+     * @throws Exception
+     */
+    @Test
+    public void search() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("zeda_customer");//没有参数，查询所有索引
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(QueryBuilders.matchQuery("name", "大帅哥"));
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse search = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+        SearchHits hits = search.getHits();
+        for (SearchHit hit : hits.getHits()) {
+            String sourceAsString = hit.getSourceAsString();
+            Customer customer = JSONObject.parseObject(sourceAsString, Customer.class);
+            System.out.println(customer);
+        }
     }
 }
