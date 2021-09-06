@@ -3,6 +3,9 @@ package com.yh.esdemo;
 import com.alibaba.fastjson.JSONObject;
 import com.yh.esdemo.domain.Customer;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -20,6 +23,7 @@ import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -28,10 +32,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 
 @SpringBootTest
@@ -88,11 +93,10 @@ class EsDemoApplicationTests {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("zeda_customer");
         AcknowledgedResponse deleteIndexResponse = indices.delete(deleteIndexRequest, RequestOptions.DEFAULT);
         System.out.println(deleteIndexResponse.isAcknowledged());
-        System.out.println(deleteIndexResponse.isAcknowledged());
     }
 
     /**
-     * 添加数据
+     * 添加数据（单个）
      *
      * @throws Exception
      */
@@ -107,6 +111,34 @@ class EsDemoApplicationTests {
         IndexRequest indexRequest = new IndexRequest("zeda_customer").id("1").source(jsonMap);
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         System.out.println(indexResponse);
+    }
+
+
+    /**
+     * 批量添加
+     */
+    @Test
+    public void bulkTest() {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 100; i++) {
+            Customer customer = new Customer(UUID.randomUUID().toString().replace("-", ""), i + "号客户", LocalDateTime.now());
+            //String data = JSONObject.toJSONString(customer);
+            String data = JSONObject.toJSONStringWithDateFormat(customer, "yyyy-MM-dd HH:mm:ss");
+            IndexRequest request = new IndexRequest("zeda_customer").source(data, XContentType.JSON);
+            bulkRequest.add(request);
+        }
+        try {
+            BulkResponse bulk = restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+            boolean hasFailures = bulk.hasFailures();
+            if (hasFailures) {
+                List<BulkItemResponse> collect = Arrays.stream(bulk.getItems()).filter(BulkItemResponse::isFailed).collect(Collectors.toList());
+                System.out.println(collect.size());
+                String msg = bulk.buildFailureMessage();
+                System.out.println(msg);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -172,7 +204,7 @@ class EsDemoApplicationTests {
     public void search() throws Exception {
         SearchRequest searchRequest = new SearchRequest("zeda_customer");//没有参数，查询所有索引
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(QueryBuilders.matchQuery("name", "大帅哥"));
+        searchSourceBuilder.query(QueryBuilders.matchQuery("name", "1"));
         searchRequest.source(searchSourceBuilder);
         SearchResponse search = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
         SearchHits hits = search.getHits();
