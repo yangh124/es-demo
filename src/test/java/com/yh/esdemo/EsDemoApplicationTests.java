@@ -2,6 +2,7 @@ package com.yh.esdemo;
 
 import com.alibaba.fastjson.JSONObject;
 import com.yh.esdemo.domain.Customer;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.IndicesClient;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -36,6 +38,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 
@@ -127,16 +130,39 @@ class EsDemoApplicationTests {
             IndexRequest request = new IndexRequest("zeda_customer").source(data, XContentType.JSON);
             bulkRequest.add(request);
         }
-        try {
-            BulkResponse bulk = restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
-            boolean hasFailures = bulk.hasFailures();
-            if (hasFailures) {
-                List<BulkItemResponse> collect = Arrays.stream(bulk.getItems()).filter(BulkItemResponse::isFailed).collect(Collectors.toList());
-                System.out.println(collect.size());
-                String msg = bulk.buildFailureMessage();
-                System.out.println(msg);
+        //同步
+//        try {
+//            BulkResponse bulk = restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+//            boolean hasFailures = bulk.hasFailures();
+//            if (hasFailures) {
+//                List<BulkItemResponse> collect = Arrays.stream(bulk.getItems()).filter(BulkItemResponse::isFailed).collect(Collectors.toList());
+//                System.out.println(collect.size());
+//                String msg = bulk.buildFailureMessage();
+//                System.out.println(msg);
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+
+        //异步
+        restHighLevelClient.bulkAsync(bulkRequest, RequestOptions.DEFAULT, new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse bulkItemResponses) {
+                boolean b = bulkItemResponses.hasFailures();
+                if (b) {
+                    System.out.println(bulkItemResponses.buildFailureMessage());
+                }
             }
-        } catch (IOException e) {
+
+            @Override
+            public void onFailure(Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        try {
+            TimeUnit.MINUTES.sleep(5);
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
